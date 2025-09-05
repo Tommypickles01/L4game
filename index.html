@@ -1,0 +1,832 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>L4 — Green Vortex Tunnel Racer</title>
+  <style>
+    :root {
+      --bg:#04170f;           /* deep green-black */
+      --neon:#21ff8f;         /* main neon */
+      --neon-soft:#15d875;
+      --hud:#b4ffd8;          /* HUD text */
+      --danger:#ff4d6d;
+      --boost:#7bffea;
+    }
+
+    html,body { height:100%; }
+    body {
+      margin:0;
+      height:100svh; /* better mobile viewport */
+      background: radial-gradient(1200px 700px at 50% 50%, #0b3d27 0%, var(--bg) 60%, #000 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      overflow:hidden;
+      -webkit-user-select:none; user-select:none;
+      touch-action:none; /* prevent scroll/zoom */
+    }
+    canvas { display:block; }
+
+    /* HUD */
+    #hud {
+      position:fixed; inset:0; pointer-events:none; color:var(--hud);
+      font-weight:600; text-shadow:0 0 10px rgba(33,255,143,.6);
+    }
+    .row { display:flex; justify-content:space-between; gap:16px; padding:14px 18px; }
+    .left, .right { display:flex; gap:16px; align-items:center; }
+    .pill { border:1px solid rgba(33,255,143,.35); padding:6px 10px; border-radius:999px; background:rgba(0,0,0,.3); backdrop-filter: blur(4px); }
+    #brand { font-size:clamp(18px, 3.5vw, 22px); letter-spacing:.12em; }
+    #brand b { font-size:clamp(22px, 4vw, 26px); color:var(--neon); text-shadow:0 0 16px rgba(33,255,143,.9), 0 0 2px rgba(33,255,143,1); }
+    #muted { opacity:.8 }
+    #score { min-width:120px; text-align:center; }
+    #hearts { letter-spacing: 4px; }
+
+    /* Respect notches / safe areas */
+    #hud .row{
+      padding-top: calc(14px + env(safe-area-inset-top));
+      padding-left: calc(18px + env(safe-area-inset-left));
+      padding-right: calc(18px + env(safe-area-inset-right));
+    }
+    #tip { position:fixed; left:50%; transform:translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); font-size:12px; color:#caffec; opacity:.85 }
+
+    /* Center banners */
+    #banner, #gameover {
+      position:fixed; inset:0; display:grid; place-items:center; pointer-events:none; color:#dfffe6;
+      text-align:center; text-shadow:0 0 14px rgba(33,255,143,.9);
+    }
+    #banner .box, #gameover .box {
+      pointer-events:auto; background:linear-gradient(180deg, rgba(4, 40, 24, .7), rgba(3, 22, 15, .7));
+      border:1px solid rgba(33,255,143,.35); padding:22px 26px; border-radius:16px;
+      box-shadow:0 0 40px rgba(33,255,143,.25), inset 0 0 40px rgba(33,255,143,.15);
+      backdrop-filter: blur(6px);
+      max-width:800px;
+    }
+    h1 { margin:0 0 6px; font-size:28px; font-weight:800; color:var(--neon); letter-spacing:.08em; }
+    .keys { margin-top:8px; font-weight:600; opacity:.9 }
+    kbd { font-family:inherit; border:1px solid rgba(255,255,255,.25); padding:2px 6px; border-radius:6px; background:rgba(255,255,255,.07); }
+    .btn {
+      pointer-events:auto; margin-top:14px; display:inline-block; padding:10px 16px; border-radius:12px;
+      border:1px solid rgba(33,255,143,.45); color:#102217; font-weight:800; letter-spacing:.1em;
+      background:linear-gradient(180deg, var(--neon) 0%, var(--neon-soft) 100%);
+      box-shadow:0 8px 30px rgba(33,255,143,.45), inset 0 0 30px rgba(255,255,255,.25);
+      text-transform:uppercase;
+    }
+    .btnRow { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+
+    .flash { animation: flash .12s linear 2; }
+    @keyframes flash { from { filter:brightness(1) } to { filter:brightness(2)} }
+
+    /* --- Touch UI overlay (D-pad + Boost + Pause + Mute) --- */
+    #touchUI { position:fixed; inset:0; pointer-events:none; display:none; }
+    #dpad {
+      position:fixed; left:calc(16px + env(safe-area-inset-left)); bottom:calc(18px + env(safe-area-inset-bottom));
+      width:180px; height:180px; pointer-events:auto; display:grid; grid-template-rows:1fr 1fr 1fr; grid-template-columns:1fr 1fr 1fr; gap:10px;
+    }
+    #dpad .padbtn {
+      display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(180deg, rgba(33,255,143,.25), rgba(33,255,143,.12));
+      border:1px solid rgba(33,255,143,.45);
+      border-radius:14px; box-shadow:0 8px 22px rgba(33,255,143,.18), inset 0 0 24px rgba(33,255,143,.22);
+      color:#caffec; font-weight:900; text-shadow:0 0 10px rgba(33,255,143,.7);
+      font-size:22px; backdrop-filter: blur(4px);
+      touch-action:none; user-select:none;
+    }
+    #dpad .padbtn[data-on="1"] { filter:brightness(1.3); transform:scale(0.98); }
+
+    #rightControls{
+      position:fixed; right:calc(16px + env(safe-area-inset-right)); bottom:calc(24px + env(safe-area-inset-bottom));
+      pointer-events:auto; display:flex; flex-direction:column; align-items:flex-end; gap:12px;
+    }
+    #boostBtn {
+      width:120px; height:120px;
+      background:linear-gradient(180deg, rgba(123,255,234,.35), rgba(123,255,234,.15));
+      border:1px solid rgba(123,255,234,.65);
+      border-radius:999px; box-shadow:0 10px 30px rgba(123,255,234,.25), inset 0 0 32px rgba(123,255,234,.3);
+      color:#102217; font-weight:900; letter-spacing:.1em; text-shadow:0 0 10px rgba(255,255,255,.4);
+      font-size:16px; backdrop-filter: blur(6px);
+    }
+    #boostBtn[data-on="1"] { filter:brightness(1.35); transform:scale(0.97); }
+
+    .tinyRow { display:flex; gap:10px; }
+    .tinyBtn {
+      width:56px; height:56px; border-radius:999px;
+      background:linear-gradient(180deg, rgba(33,255,143,.25), rgba(33,255,143,.12));
+      border:1px solid rgba(33,255,143,.45);
+      box-shadow:0 6px 18px rgba(33,255,143,.2), inset 0 0 18px rgba(33,255,143,.22);
+      color:#caffec; font-size:22px; font-weight:900; text-shadow:0 0 10px rgba(33,255,143,.7);
+      backdrop-filter: blur(4px);
+      display:flex; align-items:center; justify-content:center;
+      touch-action:none; user-select:none;
+    }
+    .tinyBtn[data-on="1"] { filter:brightness(1.3); transform:scale(0.98); }
+
+    /* Show touch UI & bump HUD on touch devices */
+    @media (hover:none) and (pointer:coarse){
+      #touchUI { display:block; }
+      .pill { font-size:16px; }
+    }
+    /* Hide tip on very small screens */
+    @media (max-width:480px){
+      #tip { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="row">
+      <div class="left">
+        <div id="brand" class="pill">L<b>4</b> • Tunnel Racer</div>
+        <div id="muted" class="pill">Glowing Green Vortex</div>
+      </div>
+      <div class="right">
+        <div id="speed" class="pill">Speed: 0</div>
+        <div id="score" class="pill">Score: 0</div>
+        <div id="hearts" class="pill">❤❤❤</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="banner">
+    <div class="box">
+      <h1>L4 — Green Vortex Tunnel Racer</h1>
+      <div>Fly inside an infinite neon grid tunnel. Dodge obstacles, jump through boosters, and avoid <b>lasers</b>.</div>
+      <div class="keys">Controls: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / Arrows • <kbd>Shift</kbd>=Burst • <kbd>Space</kbd>=Pause • <kbd>M</kbd>=Mute • <kbd>Esc</kbd>=Main Menu</div>
+      <a id="startBtn" class="btn" href="#">Press Enter or Tap to Start</a>
+    </div>
+  </div>
+
+  <div id="gameover" style="display:none">
+    <div class="box">
+      <h1>Game Over</h1>
+      <div id="finalLine">Score: 0</div>
+      <div class="btnRow">
+        <a id="restartBtn" class="btn" href="#">Restart</a>
+        <a id="menuBtn" class="btn" href="#">Main Menu</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="tip">Tap/Click to enable audio. If music doesn’t start, check the MP3 filename.</div>
+
+  <!-- Touch UI Overlay -->
+  <div id="touchUI" aria-hidden="false">
+    <div id="dpad" aria-label="D-Pad">
+      <div></div>
+      <button class="padbtn" data-dir="up"    aria-label="Up">▲</button>
+      <div></div>
+      <button class="padbtn" data-dir="left"  aria-label="Left">◀</button>
+      <div></div>
+      <button class="padbtn" data-dir="right" aria-label="Right">▶</button>
+      <div></div>
+      <button class="padbtn" data-dir="down"  aria-label="Down">▼</button>
+      <div></div>
+    </div>
+
+    <div id="rightControls">
+      <button id="boostBtn" aria-label="Boost">BOOST</button>
+      <div class="tinyRow">
+        <button id="pauseBtn" class="tinyBtn" aria-label="Pause">⏸</button>
+        <button id="muteBtn"  class="tinyBtn" aria-label="Mute">🔊</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Looping music track -->
+  <audio id="music" src="Vierre Cloud - moment (Official Audio).mp3" loop preload="auto" playsinline style="display:none"></audio>
+
+  <!-- Three.js from CDN -->
+  <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+
+  <script>
+  // -----------------------
+  // Utility: seeded random
+  // -----------------------
+  let seed = Math.random()*1e9>>>0;
+  function rand(){ seed = (1664525*seed + 1013904223) >>> 0; return seed/2**32; }
+
+  // -----------------------
+  // App State
+  // -----------------------
+  const app = {
+    started:false,
+    paused:false,
+    score:0,
+    health:3,
+    baseSpeed:26,
+    speed:26,
+    speedTarget:26,
+    maxSpeed:70,
+    boostTimer:0,
+    hitCooldown:0,
+    tunnelRadius:9.5,
+    player:{ theta:0, thetaVel:0, r:8.3, rVel:0, z:6, roll:0, rollVel:0 },
+    objects:[],
+    boosts:[],
+    lasers:[],
+    l4s: [],
+    l4NextSpawnZ: -8,
+    nextSpawnZ:-12,
+    distance:0,
+    lastTime:0,
+  };
+
+  // -----------------------
+  // THREE setup
+  // -----------------------
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x00150b, 4, 150);
+  const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 220);
+  camera.position.z = app.player.z;
+
+  // Lights (subtle)
+  const amb = new THREE.AmbientLight(0x4cffb0, .25); scene.add(amb);
+  const dir = new THREE.DirectionalLight(0x52ffbd, .35); dir.position.set(5,7,3); scene.add(dir);
+
+  // -----------------------
+  // Neon grid tunnel
+  // -----------------------
+  function buildGridTexture(size=1024, grid=64){
+    const c = document.createElement('canvas'); c.width=c.height=size; const ctx=c.getContext('2d');
+    ctx.fillStyle = '#00140b'; ctx.fillRect(0,0,size,size);
+    ctx.strokeStyle = '#21ff8f';
+    ctx.lineWidth = 2; ctx.shadowBlur = 12; ctx.shadowColor = '#1aff7c';
+    const step = size/grid;
+    ctx.globalAlpha = .9;
+    for(let i=0;i<=grid;i++){
+      ctx.beginPath(); ctx.moveTo(0, i*step); ctx.lineTo(size, i*step); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(i*step, 0); ctx.lineTo(i*step, size); ctx.stroke();
+    }
+    const g=ctx.createRadialGradient(size/2,size/2,size*0.1, size/2,size/2,size*0.7);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.35)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,size,size);
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = 8;
+    return tex;
+  }
+  const gridTex = buildGridTexture(1024, 64);
+
+  // Long inside-out cylinder (z-axis)
+  const cylGeo = new THREE.CylinderGeometry(app.tunnelRadius, app.tunnelRadius, 400, 64, 400, true);
+  cylGeo.rotateX(Math.PI/2);
+  const cylMat = new THREE.MeshBasicMaterial({ map:gridTex, side:THREE.BackSide, transparent:true, opacity:0.95 });
+  gridTex.repeat.set(36, 160);
+  const tunnel = new THREE.Mesh(cylGeo, cylMat);
+  scene.add(tunnel);
+
+  // slight green mist
+  const fogGeo = new THREE.SphereGeometry(120, 32, 16);
+  const fogMat = new THREE.MeshBasicMaterial({ color:0x0d3b24, transparent:true, opacity:0.12, side:THREE.BackSide });
+  const fogSphere = new THREE.Mesh(fogGeo, fogMat); scene.add(fogSphere);
+
+  // Player ship (simple wedge)
+  function makeShip(){
+    const g = new THREE.ConeGeometry(0.5, 1.2, 16); g.rotateX(Math.PI/2);
+    const m = new THREE.MeshStandardMaterial({ color:0x73ffd0, emissive:0x19ff8a, emissiveIntensity:.6, metalness:.4, roughness:.2 });
+    const ship = new THREE.Mesh(g, m);
+    return ship;
+  }
+  const playerMesh = makeShip(); scene.add(playerMesh);
+
+  // Prefabs
+  function makeObstacle(){
+    const s = new THREE.Vector3( rand()*1.2+0.8, rand()*1.2+0.7, rand()*1.2+0.8 );
+    const g = new THREE.BoxGeometry(s.x, s.y, s.z);
+    const m = new THREE.MeshStandardMaterial({ color:0x0f1a14, metalness:.1, roughness:.8, emissive:0x21ff8f, emissiveIntensity:.25 });
+    const box = new THREE.Mesh(g,m);
+    box.userData.radius = Math.max(s.x,s.y,s.z)*0.6;
+    box.userData.type='obs';
+    return box;
+  }
+  function makeBoostRing(){
+    const g = new THREE.TorusGeometry(app.tunnelRadius-1.3, 0.12, 16, 60);
+    g.rotateX(Math.PI/2);
+    const m = new THREE.MeshBasicMaterial({ color:0x7bffea, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending });
+    const ring = new THREE.Mesh(g,m);
+    ring.userData.type='boost';
+    return ring;
+  }
+  function makeLaserBar(){
+    const len = app.tunnelRadius*1.95;
+    const g = new THREE.BoxGeometry(len, 0.28, 0.6);
+    const m = new THREE.MeshBasicMaterial({ color:0xff4466, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending });
+    const bar = new THREE.Mesh(g,m);
+    bar.userData.type='laser';
+    bar.userData.thickness = 0.32; // thicker to reduce grazes
+    return bar;
+  }
+
+  // ---- L4 particle helpers ----
+  function buildL4Texture(size = 256, text = 'L4', color = '#21ff8f') {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `900 ${size * 0.55}px ui-sans-serif, system-ui`;
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = size * 0.24; ctx.globalAlpha = 0.55; ctx.fillText(text, size/2, size/2 + size*0.05);
+    ctx.shadowBlur = size * 0.12; ctx.globalAlpha = 0.85; ctx.fillText(text, size/2, size/2 + size*0.05);
+    ctx.shadowBlur = 0;           ctx.globalAlpha = 1.00; ctx.fillText(text, size/2, size/2 + size*0.05);
+    const tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 8;
+    tex.needsUpdate = true;
+    return tex;
+  }
+  let L4_TEXTURE = null;
+  function spawnL4(z) {
+    if (!L4_TEXTURE) L4_TEXTURE = buildL4Texture(256);
+    const mat = new THREE.SpriteMaterial({
+      map: L4_TEXTURE,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      opacity: 0.9
+    });
+    const sp = new THREE.Sprite(mat);
+
+    const theta = rand() * Math.PI * 2;
+    const r = 2.2 + rand() * (app.tunnelRadius - 2.3);
+    const base = 0.45 + rand() * 0.75;
+    sp.position.set(r * Math.cos(theta), r * Math.sin(theta), z);
+    sp.scale.set(base, base, 1);
+
+    sp.userData = {
+      theta,
+      r,
+      baseScale: base,
+      rotSpeed: (rand() * 2 - 1) * 0.8,
+      wobble: rand() * Math.PI * 2,
+      wobbleAmp: 0.25 + rand() * 0.3,
+      parallax: 0.85 + rand() * 0.15
+    };
+
+    scene.add(sp);
+    app.l4s.push(sp);
+  }
+
+  // Spawning waves for obstacles/lasers/boosts
+  function spawnWave(){
+    const z = app.nextSpawnZ - (6 + rand()*6);
+    app.nextSpawnZ = z;
+
+    const roll = rand();
+    if(roll < 0.60){
+      const count = 1 + (rand()>0.65?1:0);
+      for(let i=0;i<count;i++){
+        const o = makeObstacle();
+        const theta = rand()*Math.PI*2;
+        const r = app.tunnelRadius - 1.1;
+        o.position.set( r*Math.cos(theta), r*Math.sin(theta), z - i*1.8 );
+        o.rotation.set(rand()*Math.PI, rand()*Math.PI, rand()*Math.PI);
+        scene.add(o); app.objects.push(o);
+      }
+    } else if (roll < 0.82) {
+      const L = makeLaserBar();
+      L.position.set(0,0,z);
+      L.rotation.z = rand()*Math.PI*2; // orientation around the tunnel
+      scene.add(L); app.lasers.push(L);
+    } else {
+      const ring = makeBoostRing();
+      ring.position.set(0,0,z);
+      scene.add(ring); app.boosts.push(ring);
+    }
+  }
+
+  // -----------------------
+  // Audio: loop external song + SFX (robust)
+  // -----------------------
+  let audioCtx, master, mediaNode, musicEl, musicMuted=false;
+
+  function setTip(msg){ const el = document.getElementById('tip'); if(el) el.textContent = msg; }
+
+  function initAudio(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+      master = audioCtx.createGain();
+      master.gain.value = 0.18;
+      master.connect(audioCtx.destination);
+    }
+    if(!musicEl) musicEl = document.getElementById('music');
+    if(musicEl && !mediaNode){
+      try { mediaNode = audioCtx.createMediaElementSource(musicEl); mediaNode.connect(master); } catch(e){}
+      musicEl.loop = true; musicEl.volume = 1;
+    }
+  }
+
+  async function ensureMusic() {
+    try { initAudio(); } catch(e){}
+    try { await audioCtx.resume(); } catch(e){}
+    if (musicEl && musicEl.readyState < 2) { try { musicEl.load(); } catch(e){} }
+    try {
+      if (musicEl && musicEl.paused) { await musicEl.play(); setTip(''); }
+    } catch (err) { setTip('Tap/Click the screen then press Start to enable audio.'); }
+  }
+  window.addEventListener('pointerdown', () => { ensureMusic(); }, { once:true });
+
+  function toggleMusic(){
+    if(!audioCtx) return;
+    musicMuted = !musicMuted;
+    const m = document.getElementById('music');
+    if (m) { musicMuted ? m.pause() : ensureMusic(); }
+    updateButtonStates();
+  }
+
+  // Simple SFX using WebAudio
+  function sfxBoost(){
+    if(!audioCtx) return; const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(); o.type='triangle';
+    const g=audioCtx.createGain(); g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+    o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(1200,t+0.25);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.36);
+  }
+  function sfxHit(){
+    if(!audioCtx) return; const t=audioCtx.currentTime;
+    const o=audioCtx.createOscillator(); o.type='square';
+    const g=audioCtx.createGain(); g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+    o.frequency.setValueAtTime(240,t); o.frequency.exponentialRampToValueAtTime(60,t+0.2);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.24);
+  }
+
+  // Keyboard + UI
+  const keys = new Set();
+  const down = e => {
+    keys.add(e.code);
+    if(e.code==='Enter' && !app.started){ start(); }
+    if(e.code==='Space'){ togglePause(); }
+    if(e.code==='KeyM'){ toggleMusic(); }
+    if(e.code==='Escape'){ goToMenu(); }
+  };
+  const up   = e => { keys.delete(e.code); };
+  addEventListener('keydown', down); addEventListener('keyup', up);
+
+  // Touch gestures
+  const touch = { active:false, x0:0, y0:0, x:0, y:0, fingers:0, t0:0, lastTap:0 };
+  const targetEl = renderer.domElement;
+  function tp(e){ e.preventDefault(); }
+
+  targetEl.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    touch.active = true;
+    touch.x0 = touch.x = t.clientX;
+    touch.y0 = touch.y = t.clientY;
+    touch.fingers = e.touches.length;
+    touch.t0 = performance.now();
+    if (e.touches.length === 3) togglePause();
+    if (e.touches.length === 2 && performance.now() - touch.lastTap < 250) toggleMusic();
+    tp(e);
+  }, {passive:false});
+  targetEl.addEventListener('touchmove', e => {
+    const t = e.touches[0]; if (!t) return;
+    touch.x = t.clientX; touch.y = t.clientY; touch.fingers = e.touches.length;
+    tp(e);
+  }, {passive:false});
+  targetEl.addEventListener('touchend', e => {
+    touch.fingers = e.touches.length;
+    if (e.touches.length === 0) { touch.active = false; touch.lastTap = performance.now(); }
+    tp(e);
+  }, {passive:false});
+
+  // On-screen D-pad + Boost (multi-touch friendly)
+  const virtual = {left:false,right:false,up:false,down:false,boost:false};
+  function bindHold(el, keyName){
+    if(!el) return;
+    const setOn = v => { virtual[keyName]=v; el.dataset.on = v ? '1':'0'; };
+    el.addEventListener('pointerdown', e => { e.preventDefault(); setOn(true); ensureMusic(); el.setPointerCapture?.(e.pointerId); });
+    const off = () => setOn(false);
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointercancel', off);
+    el.addEventListener('pointerleave', off);
+    el.addEventListener('lostpointercapture', off);
+  }
+  bindHold(document.querySelector('.padbtn[data-dir="left"]'), 'left');
+  bindHold(document.querySelector('.padbtn[data-dir="right"]'), 'right');
+  bindHold(document.querySelector('.padbtn[data-dir="up"]'), 'up');
+  bindHold(document.querySelector('.padbtn[data-dir="down"]'), 'down');
+  bindHold(document.getElementById('boostBtn'), 'boost');
+
+  // New tiny buttons: Pause & Mute
+  const pauseBtn = document.getElementById('pauseBtn');
+  const muteBtn  = document.getElementById('muteBtn');
+
+  function updateButtonStates(){
+    if (pauseBtn){
+      pauseBtn.textContent = app.paused ? '▶' : '⏸';
+      pauseBtn.dataset.on = app.paused ? '1' : '0';
+      pauseBtn.setAttribute('aria-pressed', app.paused ? 'true' : 'false');
+    }
+    if (muteBtn){
+      muteBtn.textContent = musicMuted ? '🔇' : '🔊';
+      muteBtn.dataset.on = musicMuted ? '1' : '0';
+      muteBtn.setAttribute('aria-pressed', musicMuted ? 'true' : 'false');
+    }
+  }
+  pauseBtn?.addEventListener('click', e => { e.preventDefault(); togglePause(); updateButtonStates(); });
+  muteBtn?.addEventListener('click',  e => { e.preventDefault(); toggleMusic(); updateButtonStates(); });
+
+  const ui = {
+    speed:document.getElementById('speed'),
+    score:document.getElementById('score'),
+    hearts:document.getElementById('hearts'),
+    banner:document.getElementById('banner'),
+    over:document.getElementById('gameover'),
+    final:document.getElementById('finalLine')
+  };
+  document.getElementById('startBtn').onclick = () => start();
+  document.getElementById('restartBtn').onclick = () => restart();
+  document.getElementById('menuBtn').onclick = () => goToMenu();
+
+  // Responsive
+  addEventListener('resize', () => {
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  });
+
+  function updateHUD(){
+    ui.speed.textContent = `Speed: ${app.speed.toFixed(0)}`;
+    ui.score.textContent = `Score: ${Math.floor(app.score)}`;
+    ui.hearts.textContent = '❤'.repeat(app.health) + ' '.repeat(Math.max(0,3-app.health));
+  }
+
+  // Start/Pause/Restart/Menu
+  async function start(){
+    if(app.started) return;
+    app.started=true; ui.banner.style.display='none';
+    await ensureMusic();
+    app.lastTime=performance.now(); loop();
+    updateButtonStates();
+  }
+  function togglePause(){
+    if(!app.started) return;
+    app.paused=!app.paused;
+    if(!app.paused){
+      app.lastTime=performance.now();
+      ensureMusic();
+      loop();
+    } else {
+      document.getElementById('music')?.pause();
+    }
+    updateButtonStates();
+  }
+  function restart(){
+    resetState(false);
+    app.started=true; ui.over.style.display='none';
+    ensureMusic();
+    app.lastTime=performance.now(); loop();
+    updateButtonStates();
+  }
+  function goToMenu(){
+    resetState(true);
+    ui.over.style.display='none';
+    ui.banner.style.display='grid';
+    updateButtonStates();
+  }
+  function resetState(stopMusic){
+    for(const a of app.objects){ scene.remove(a); }
+    for(const a of app.boosts){ scene.remove(a); }
+    for(const a of app.lasers){ scene.remove(a); }
+    for(const s of app.l4s){ scene.remove(s); }
+    app.objects.length=0; app.boosts.length=0; app.lasers.length=0; app.l4s.length=0;
+
+    app.started=false; app.paused=false;
+    app.score=0; app.health=3;
+    app.speed=app.baseSpeed; app.speedTarget=app.baseSpeed;
+    app.boostTimer=0; app.hitCooldown=0;
+    app.distance=0; app.nextSpawnZ=-12; app.l4NextSpawnZ=-8;
+    app.player.theta=0; app.player.thetaVel=0; app.player.r=8.3; app.player.rVel=0; app.player.roll=0; app.player.rollVel=0;
+    gridTex.offset.y=0;
+
+    updateHUD();
+    for(let i=0;i<18;i++) spawnWave();
+
+    const L4_SPAWN_AHEAD = 160;
+    while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){
+      app.l4NextSpawnZ -= 4 + rand()*6;
+      spawnL4(app.l4NextSpawnZ);
+    }
+
+    if(stopMusic){
+      const m = document.getElementById('music');
+      m?.pause(); if(m) m.currentTime = 0;
+      musicMuted = false; // reset to default audible on next start
+    }
+  }
+
+  // Collision helpers
+  function playerWorldPosition(){
+    return new THREE.Vector3(
+      app.player.r * Math.cos(app.player.theta),
+      app.player.r * Math.sin(app.player.theta),
+      0
+    );
+  }
+
+  // Core loop
+  function loop(){
+    if(!app.started || app.paused) return;
+    const now = performance.now();
+    const dt = Math.min(0.035, (now - app.lastTime)/1000);
+    app.lastTime = now;
+
+    app.distance += dt * app.speed;
+
+    // controls
+    const turnAccel = 5.8, turnDrag = 3.2, rollK = 0.9;
+    const radialAccel = 15.0, radialDrag = 7.0, rMin = 2.3, rMax = app.tunnelRadius - 0.9;
+
+    // Keyboard
+    let left  = keys.has('KeyA') || keys.has('ArrowLeft');
+    let right = keys.has('KeyD') || keys.has('ArrowRight');
+    let upKey = keys.has('KeyW') || keys.has('ArrowUp');
+    let downKey= keys.has('KeyS') || keys.has('ArrowDown');
+    let burst = keys.has('ShiftLeft') || keys.has('ShiftRight');
+
+    // Touch swipe
+    if (touch.active) {
+      const dx = (touch.x - touch.x0) / innerWidth;
+      const dy = (touch.y - touch.y0) / innerHeight;
+      const dead = 0.02;
+      left  ||= dx < -dead;
+      right ||= dx >  dead;
+      upKey ||= dy < -dead;     // toward center
+      downKey ||= dy >  dead;   // toward wall
+      burst ||= touch.fingers >= 2; // 2+ fingers = boost
+    }
+    // On-screen buttons
+    left  ||= virtual.left;
+    right ||= virtual.right;
+    upKey ||= virtual.up;
+    downKey ||= virtual.down;
+    burst ||= virtual.boost;
+
+    if(left)  app.player.thetaVel -= turnAccel*dt;
+    if(right) app.player.thetaVel += turnAccel*dt;
+    app.player.thetaVel *= Math.max(0, 1 - turnDrag*dt);
+    app.player.theta += app.player.thetaVel*dt;
+
+    if(upKey)   app.player.rVel -= radialAccel*dt;
+    if(downKey) app.player.rVel += radialAccel*dt;
+    app.player.rVel *= Math.max(0, 1 - radialDrag*dt);
+    app.player.r += app.player.rVel*dt;
+    if(app.player.r < rMin){ app.player.r = rMin; app.player.rVel = 0; }
+    if(app.player.r > rMax){ app.player.r = rMax; app.player.rVel = 0; }
+
+    const target = app.baseSpeed * (1 + Math.min(1, app.score/4000)) * (burst?1.18:1);
+    if(app.boostTimer>0) app.boostTimer -= dt;
+    const boostMul = app.boostTimer>0 ? 1.75 : 1;
+    app.speedTarget = Math.min(app.maxSpeed, target*boostMul);
+    app.speed += (app.speedTarget - app.speed) * Math.min(1, dt*2.2);
+
+    gridTex.offset.y -= dt * app.speed * 0.05;
+    fogSphere.rotation.z += dt*0.02;
+
+    const playerPos = playerWorldPosition();
+    camera.position.x = playerPos.x*0.035;
+    camera.position.y = playerPos.y*0.035;
+    camera.lookAt(0,0,-12);
+
+    app.player.rollVel += (-app.player.thetaVel - app.player.roll)*rollK*dt;
+    app.player.roll += app.player.rollVel*dt; app.player.rollVel *= (1-2.2*dt);
+    camera.rotation.z = app.player.roll*0.45;
+
+    playerMesh.position.copy(playerPos.clone().multiplyScalar(0.98));
+    playerMesh.position.z = -1.6;
+    playerMesh.rotation.z = app.player.theta + Math.PI/2;
+
+    // Obstacles
+    for(let i=app.objects.length-1; i>=0; i--){
+      const o = app.objects[i];
+      o.position.z += app.speed*dt;
+      o.rotation.x += dt*.6; o.rotation.y -= dt*.8;
+      if(o.position.z > app.player.z+3){
+        scene.remove(o); app.objects.splice(i,1); app.score += 12; continue;
+      }
+      const d = o.position.distanceTo(playerPos);
+      if(d < (o.userData.radius + 0.6) && app.hitCooldown<=0){
+        app.hitCooldown = .6; app.health--; document.getElementById('hearts').classList.add('flash'); setTimeout(()=>document.getElementById('hearts').classList.remove('flash'),160);
+        app.speed *= 0.6; app.player.thetaVel += (Math.random()-.5)*6; app.player.rVel += (Math.random()-.5)*10; sfxHit();
+        if(app.health<=0){ endGame(); return; }
+      }
+    }
+    if(app.hitCooldown>0) app.hitCooldown -= dt;
+
+    // Boost rings
+    for(let i=app.boosts.length-1;i>=0;i--){
+      const r = app.boosts[i];
+      r.position.z += app.speed*dt;
+      r.rotation.z += dt*1.5;
+      if(r.position.z > app.player.z+3){ scene.remove(r); app.boosts.splice(i,1); continue; }
+      const d = Math.abs(r.position.z) + Math.abs(playerPos.length() - (app.tunnelRadius-1.3));
+      if(d < 1.2){
+        app.boostTimer = 2.2; document.getElementById('speed').classList.add('flash'); setTimeout(()=>document.getElementById('speed').classList.remove('flash'), 160);
+        scene.remove(r); app.boosts.splice(i,1); app.score += 25; sfxBoost();
+      }
+    }
+
+    // Lasers — swept collision so fast passes still hit
+    for (let i = app.lasers.length - 1; i >= 0; i--) {
+      const L = app.lasers[i];
+      const prevZ = L.userData.prevZ ?? L.position.z;
+      L.position.z += app.speed * dt;
+      L.rotation.z += dt * 1.1;
+      const curZ = L.position.z;
+      L.userData.prevZ = curZ;
+
+      if (curZ > app.player.z + 3) { scene.remove(L); app.lasers.splice(i, 1); continue; }
+
+      const crossesPlane = (prevZ <= 0 && curZ >= 0) || (prevZ >= 0 && curZ <= 0);
+      const zClosest = crossesPlane ? 0 : (Math.abs(prevZ) < Math.abs(curZ) ? prevZ : curZ);
+      const zTol = 0.7 + app.speed * dt * 0.9;
+
+      const angDiff = Math.abs(Math.sin(app.player.theta - L.rotation.z));
+      const distToBar = angDiff * app.player.r;
+
+      const hit = Math.abs(zClosest) < zTol && distToBar < L.userData.thickness;
+
+      if (hit && app.hitCooldown <= 0) {
+        app.hitCooldown = 0.6;
+        app.health--;
+        document.getElementById('hearts').classList.add('flash'); setTimeout(() => document.getElementById('hearts').classList.remove('flash'), 160);
+        app.speed *= 0.6;
+        app.player.thetaVel += (Math.random() - 0.5) * 6;
+        app.player.rVel += (Math.random() - 0.5) * 10;
+        sfxHit();
+        if (app.health <= 0) { endGame(); return; }
+      }
+    }
+
+    // --- L4 particles update ---
+    for (let i = app.l4s.length - 1; i >= 0; i--) {
+      const s = app.l4s[i];
+      const u = s.userData;
+      s.position.z += app.speed * dt * u.parallax;
+      u.theta += u.rotSpeed * dt;
+      s.position.x = u.r * Math.cos(u.theta);
+      s.position.y = u.r * Math.sin(u.theta);
+      u.wobble += dt;
+      const pulse = 0.85 + u.wobbleAmp * Math.sin(u.wobble * 2.4);
+      s.scale.setScalar(u.baseScale * pulse);
+      const ahead = (s.position.z - app.player.z);
+      const fade = Math.max(0, Math.min(1, 1 - ahead / 160));
+      s.material.opacity = 0.18 + 0.72 * fade;
+      if (s.position.z > app.player.z + 5) {
+        scene.remove(s); app.l4s.splice(i, 1);
+      }
+    }
+
+    // Endless spawning
+    const SPAWN_AHEAD = 160;
+    while(app.nextSpawnZ > -app.distance - SPAWN_AHEAD){ spawnWave(); }
+    const L4_SPAWN_AHEAD = 160;
+    while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){
+      app.l4NextSpawnZ -= 4 + rand()*6;
+      spawnL4(app.l4NextSpawnZ);
+    }
+
+    app.score += dt * app.speed * 0.7;
+
+    renderer.render(scene, camera);
+    updateHUD();
+    requestAnimationFrame(loop);
+  }
+
+  function endGame(){
+    ui.final.textContent = `Score: ${Math.floor(app.score)}`;
+    ui.over.style.display='grid';
+    document.getElementById('music')?.pause();
+    app.started=false; app.paused=true;
+    updateButtonStates();
+  }
+
+  // Seed & HUD
+  for(let i=0;i<18;i++) spawnWave();
+  const L4_SPAWN_AHEAD = 160;
+  while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){
+    app.l4NextSpawnZ -= 4 + rand()*6;
+    spawnL4(app.l4NextSpawnZ);
+  }
+  updateHUD();
+  updateButtonStates();
+
+  // Enter starts
+  window.addEventListener('keypress', (e)=>{ if(e.code==='Enter' && !app.started){ start(); } });
+
+  // Warn if audio element reports an error (bad filename/path)
+  (function(){
+    const a = document.getElementById('music');
+    if (!a) return;
+    a.addEventListener('error', ()=>{
+      setTip('Audio load failed: check the MP3 filename/path is exactly "Vierre Cloud - moment (Official Audio).mp3"');
+    });
+    a.addEventListener('play', ()=> { setTip(''); });
+  })();
+  </script>
+</body>
+</html>
