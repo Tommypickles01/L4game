@@ -6,10 +6,10 @@
   <title>L4 — Green Vortex Tunnel Racer</title>
   <style>
     :root {
-      --bg:#04170f;           /* deep green-black */
-      --neon:#21ff8f;         /* main neon */
+      --bg:#04170f;
+      --neon:#21ff8f;
       --neon-soft:#15d875;
-      --hud:#b4ffd8;          /* HUD text */
+      --hud:#b4ffd8;
       --danger:#ff4d6d;
       --boost:#7bffea;
     }
@@ -17,12 +17,12 @@
     html,body { height:100%; }
     body {
       margin:0;
-      height:100svh; /* better mobile viewport */
+      height:100svh;
       background: radial-gradient(1200px 700px at 50% 50%, #0b3d27 0%, var(--bg) 60%, #000 100%);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
       overflow:hidden;
       -webkit-user-select:none; user-select:none;
-      touch-action:none; /* prevent scroll/zoom */
+      touch-action:none;
     }
     canvas { display:block; }
 
@@ -36,7 +36,6 @@
     .pill { border:1px solid rgba(33,255,143,.35); padding:6px 10px; border-radius:999px; background:rgba(0,0,0,.3); backdrop-filter: blur(4px); }
     #brand { font-size:clamp(18px, 3.5vw, 22px); letter-spacing:.12em; }
     #brand b { font-size:clamp(22px, 4vw, 26px); color:var(--neon); text-shadow:0 0 16px rgba(33,255,143,.9), 0 0 2px rgba(33,255,143,1); }
-    #muted { opacity:.8 }
     #score { min-width:120px; text-align:center; }
     #hearts { letter-spacing: 4px; }
 
@@ -75,23 +74,37 @@
     .flash { animation: flash .12s linear 2; }
     @keyframes flash { from { filter:brightness(1) } to { filter:brightness(2)} }
 
-    /* --- Touch UI overlay (D-pad + Boost + Pause + Mute) --- */
+    /* --- Touch UI overlay (Rotate + Radial wheel + buttons) --- */
     #touchUI { position:fixed; inset:0; pointer-events:none; display:none; }
-    #dpad {
+    /* Wheel bottom-left */
+    #wheel {
       position:fixed; left:calc(16px + env(safe-area-inset-left)); bottom:calc(18px + env(safe-area-inset-bottom));
-      width:180px; height:180px; pointer-events:auto; display:grid; grid-template-rows:1fr 1fr 1fr; grid-template-columns:1fr 1fr 1fr; gap:10px;
-    }
-    #dpad .padbtn {
-      display:flex; align-items:center; justify-content:center;
-      background:linear-gradient(180deg, rgba(33,255,143,.25), rgba(33,255,143,.12));
+      width:180px; height:180px; pointer-events:auto; border-radius:50%;
+      background: radial-gradient(circle at 50% 50%, rgba(33,255,143,.14), rgba(33,255,143,.06));
       border:1px solid rgba(33,255,143,.45);
-      border-radius:14px; box-shadow:0 8px 22px rgba(33,255,143,.18), inset 0 0 24px rgba(33,255,143,.22);
-      color:#caffec; font-weight:900; text-shadow:0 0 10px rgba(33,255,143,.7);
-      font-size:22px; backdrop-filter: blur(4px);
+      box-shadow:0 12px 30px rgba(33,255,143,.22), inset 0 0 26px rgba(33,255,143,.25);
+      backdrop-filter: blur(6px);
       touch-action:none; user-select:none;
+      position:fixed;
+      /* make it its own positioning context for the knob */
+      contain: layout paint;
     }
-    #dpad .padbtn[data-on="1"] { filter:brightness(1.3); transform:scale(0.98); }
+    #wheel:after{
+      content:""; position:absolute; inset:12px; border-radius:50%;
+      border:1px dashed rgba(33,255,143,.35);
+    }
+    /* Sliding + rotating knob */
+    #wheelKnob{
+      position:absolute; left:50%; top:50%;
+      width:70px; height:70px; border-radius:50%;
+      background:radial-gradient(circle at 40% 40%, rgba(33,255,143,.6), rgba(33,255,143,.25));
+      border:1px solid rgba(33,255,143,.8);
+      box-shadow:0 8px 24px rgba(33,255,143,.35), inset 0 0 18px rgba(33,255,143,.4);
+      transform:translate(-50%, -50%) rotate(0rad);
+      will-change: transform;
+    }
 
+    /* Right-side buttons */
     #rightControls{
       position:fixed; right:calc(16px + env(safe-area-inset-right)); bottom:calc(24px + env(safe-area-inset-bottom));
       pointer-events:auto; display:flex; flex-direction:column; align-items:flex-end; gap:12px;
@@ -103,6 +116,7 @@
       border-radius:999px; box-shadow:0 10px 30px rgba(123,255,234,.25), inset 0 0 32px rgba(123,255,234,.3);
       color:#102217; font-weight:900; letter-spacing:.1em; text-shadow:0 0 10px rgba(255,255,255,.4);
       font-size:16px; backdrop-filter: blur(6px);
+      touch-action:none; user-select:none;
     }
     #boostBtn[data-on="1"] { filter:brightness(1.35); transform:scale(0.97); }
 
@@ -169,16 +183,8 @@
 
   <!-- Touch UI Overlay -->
   <div id="touchUI" aria-hidden="false">
-    <div id="dpad" aria-label="D-Pad">
-      <div></div>
-      <button class="padbtn" data-dir="up"    aria-label="Up">▲</button>
-      <div></div>
-      <button class="padbtn" data-dir="left"  aria-label="Left">◀</button>
-      <div></div>
-      <button class="padbtn" data-dir="right" aria-label="Right">▶</button>
-      <div></div>
-      <button class="padbtn" data-dir="down"  aria-label="Down">▼</button>
-      <div></div>
+    <div id="wheel" aria-label="Rotate + radial wheel">
+      <div id="wheelKnob"></div>
     </div>
 
     <div id="rightControls">
@@ -198,10 +204,12 @@
 
   <script>
   // -----------------------
-  // Utility: seeded random
+  // Utility
   // -----------------------
   let seed = Math.random()*1e9>>>0;
-  function rand(){ seed = (1664525*seed + 1013904223) >>> 0; return seed/2**32; }
+  const rand = () => ((seed = (1664525*seed + 1013904223) >>> 0) / 2**32);
+  const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+  const lerp  = (a,b,t) => a + (b-a)*t;
 
   // -----------------------
   // App State
@@ -243,8 +251,8 @@
   const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 220);
   camera.position.z = app.player.z;
 
-  // Lights (subtle)
-  const amb = new THREE.AmbientLight(0x4cffb0, .25); scene.add(amb);
+  // Lights
+  scene.add(new THREE.AmbientLight(0x4cffb0, .25));
   const dir = new THREE.DirectionalLight(0x52ffbd, .35); dir.position.set(5,7,3); scene.add(dir);
 
   // -----------------------
@@ -253,10 +261,8 @@
   function buildGridTexture(size=1024, grid=64){
     const c = document.createElement('canvas'); c.width=c.height=size; const ctx=c.getContext('2d');
     ctx.fillStyle = '#00140b'; ctx.fillRect(0,0,size,size);
-    ctx.strokeStyle = '#21ff8f';
-    ctx.lineWidth = 2; ctx.shadowBlur = 12; ctx.shadowColor = '#1aff7c';
-    const step = size/grid;
-    ctx.globalAlpha = .9;
+    ctx.strokeStyle = '#21ff8f'; ctx.lineWidth = 2; ctx.shadowBlur = 12; ctx.shadowColor = '#1aff7c';
+    const step = size/grid; ctx.globalAlpha = .9;
     for(let i=0;i<=grid;i++){
       ctx.beginPath(); ctx.moveTo(0, i*step); ctx.lineTo(size, i*step); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(i*step, 0); ctx.lineTo(i*step, size); ctx.stroke();
@@ -264,31 +270,38 @@
     const g=ctx.createRadialGradient(size/2,size/2,size*0.1, size/2,size/2,size*0.7);
     g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.35)');
     ctx.fillStyle=g; ctx.fillRect(0,0,size,size);
-    const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.anisotropy = 8;
+    const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 8;
     return tex;
   }
   const gridTex = buildGridTexture(1024, 64);
 
-  // Long inside-out cylinder (z-axis)
+  // Inside-out cylinder
   const cylGeo = new THREE.CylinderGeometry(app.tunnelRadius, app.tunnelRadius, 400, 64, 400, true);
   cylGeo.rotateX(Math.PI/2);
   const cylMat = new THREE.MeshBasicMaterial({ map:gridTex, side:THREE.BackSide, transparent:true, opacity:0.95 });
   gridTex.repeat.set(36, 160);
-  const tunnel = new THREE.Mesh(cylGeo, cylMat);
-  scene.add(tunnel);
+  const tunnel = new THREE.Mesh(cylGeo, cylMat); scene.add(tunnel);
 
   // slight green mist
-  const fogGeo = new THREE.SphereGeometry(120, 32, 16);
-  const fogMat = new THREE.MeshBasicMaterial({ color:0x0d3b24, transparent:true, opacity:0.12, side:THREE.BackSide });
-  const fogSphere = new THREE.Mesh(fogGeo, fogMat); scene.add(fogSphere);
+  const fogSphere = new THREE.Mesh(new THREE.SphereGeometry(120, 32, 16),
+                                   new THREE.MeshBasicMaterial({ color:0x0d3b24, transparent:true, opacity:0.12, side:THREE.BackSide }));
+  scene.add(fogSphere);
 
-  // Player ship (simple wedge)
+  // Player ship (with outline + glow)
   function makeShip(){
-    const g = new THREE.ConeGeometry(0.5, 1.2, 16); g.rotateX(Math.PI/2);
-    const m = new THREE.MeshStandardMaterial({ color:0x73ffd0, emissive:0x19ff8a, emissiveIntensity:.6, metalness:.4, roughness:.2 });
-    const ship = new THREE.Mesh(g, m);
+    const scaleMul = isMobile ? 1.25 : 1.0;
+    const g = new THREE.ConeGeometry(0.5*scaleMul, 1.2*scaleMul, 16); g.rotateX(Math.PI/2);
+    const ship = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+      color:0x73ffd0, emissive:0x19ff8a, emissiveIntensity:isMobile ? 0.9 : 0.6, metalness:.4, roughness:.2
+    }));
+    const outline = new THREE.Mesh(g.clone(), new THREE.MeshBasicMaterial({ color:0x00150b, side:THREE.BackSide }));
+    outline.scale.setScalar(1.15); ship.add(outline);
+    const glowTex = (()=>{ const c=document.createElement('canvas'); c.width=c.height=256; const ctx=c.getContext('2d');
+      const grd=ctx.createRadialGradient(128,128,10,128,128,128);
+      grd.addColorStop(0,'rgba(33,255,143,0.9)'); grd.addColorStop(0.4,'rgba(33,255,143,0.25)'); grd.addColorStop(1,'rgba(33,255,143,0)');
+      ctx.fillStyle=grd; ctx.fillRect(0,0,256,256); const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t; })();
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, blending:THREE.AdditiveBlending, transparent:true, depthWrite:false, opacity:0.85 }));
+    glow.scale.set(2.2*scaleMul, 2.2*scaleMul, 1); glow.position.set(0,0,-0.1); ship.add(glow);
     return ship;
   }
   const playerMesh = makeShip(); scene.add(playerMesh);
@@ -296,241 +309,200 @@
   // Prefabs
   function makeObstacle(){
     const s = new THREE.Vector3( rand()*1.2+0.8, rand()*1.2+0.7, rand()*1.2+0.8 );
-    const g = new THREE.BoxGeometry(s.x, s.y, s.z);
-    const m = new THREE.MeshStandardMaterial({ color:0x0f1a14, metalness:.1, roughness:.8, emissive:0x21ff8f, emissiveIntensity:.25 });
-    const box = new THREE.Mesh(g,m);
-    box.userData.radius = Math.max(s.x,s.y,s.z)*0.6;
-    box.userData.type='obs';
-    return box;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(s.x, s.y, s.z),
+                               new THREE.MeshStandardMaterial({ color:0x0f1a14, metalness:.1, roughness:.8, emissive:0x21ff8f, emissiveIntensity:.25 }));
+    box.userData.radius = Math.max(s.x,s.y,s.z)*0.6; box.userData.type='obs'; return box;
   }
   function makeBoostRing(){
-    const g = new THREE.TorusGeometry(app.tunnelRadius-1.3, 0.12, 16, 60);
-    g.rotateX(Math.PI/2);
-    const m = new THREE.MeshBasicMaterial({ color:0x7bffea, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending });
-    const ring = new THREE.Mesh(g,m);
-    ring.userData.type='boost';
-    return ring;
+    const g = new THREE.TorusGeometry(app.tunnelRadius-1.3, 0.12, 16, 60); g.rotateX(Math.PI/2);
+    const ring = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color:0x7bffea, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending }));
+    ring.userData.type='boost'; return ring;
   }
   function makeLaserBar(){
     const len = app.tunnelRadius*1.95;
-    const g = new THREE.BoxGeometry(len, 0.28, 0.6);
-    const m = new THREE.MeshBasicMaterial({ color:0xff4466, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending });
-    const bar = new THREE.Mesh(g,m);
-    bar.userData.type='laser';
-    bar.userData.thickness = 0.32; // thicker to reduce grazes
-    return bar;
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(len, 0.28, 0.6),
+                               new THREE.MeshBasicMaterial({ color:0xff4466, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending }));
+    bar.userData.type='laser'; bar.userData.thickness = 0.32; return bar;
   }
 
   // ---- L4 particle helpers ----
   function buildL4Texture(size = 256, text = 'L4', color = '#21ff8f') {
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, size, size);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `900 ${size * 0.55}px ui-sans-serif, system-ui`;
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
+    const c = document.createElement('canvas'); c.width = c.height = size; const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, size, size); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${size * 0.55}px ui-sans-serif, system-ui`; ctx.fillStyle = color; ctx.shadowColor = color;
     ctx.shadowBlur = size * 0.24; ctx.globalAlpha = 0.55; ctx.fillText(text, size/2, size/2 + size*0.05);
     ctx.shadowBlur = size * 0.12; ctx.globalAlpha = 0.85; ctx.fillText(text, size/2, size/2 + size*0.05);
     ctx.shadowBlur = 0;           ctx.globalAlpha = 1.00; ctx.fillText(text, size/2, size/2 + size*0.05);
-    const tex = new THREE.CanvasTexture(c);
-    tex.anisotropy = 8;
-    tex.needsUpdate = true;
-    return tex;
+    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.needsUpdate = true; return tex;
   }
   let L4_TEXTURE = null;
   function spawnL4(z) {
     if (!L4_TEXTURE) L4_TEXTURE = buildL4Texture(256);
-    const mat = new THREE.SpriteMaterial({
-      map: L4_TEXTURE,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      opacity: 0.9
-    });
-    const sp = new THREE.Sprite(mat);
-
-    const theta = rand() * Math.PI * 2;
-    const r = 2.2 + rand() * (app.tunnelRadius - 2.3);
-    const base = 0.45 + rand() * 0.75;
-    sp.position.set(r * Math.cos(theta), r * Math.sin(theta), z);
-    sp.scale.set(base, base, 1);
-
-    sp.userData = {
-      theta,
-      r,
-      baseScale: base,
-      rotSpeed: (rand() * 2 - 1) * 0.8,
-      wobble: rand() * Math.PI * 2,
-      wobbleAmp: 0.25 + rand() * 0.3,
-      parallax: 0.85 + rand() * 0.15
-    };
-
-    scene.add(sp);
-    app.l4s.push(sp);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: L4_TEXTURE, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.9
+    }));
+    const theta = rand() * Math.PI * 2, r = 2.2 + rand() * (app.tunnelRadius - 2.3), base = 0.45 + rand() * 0.75;
+    sp.position.set(r * Math.cos(theta), r * Math.sin(theta), z); sp.scale.set(base, base, 1);
+    sp.userData = { theta, r, baseScale: base, rotSpeed: (rand() * 2 - 1) * 0.8, wobble: rand() * Math.PI * 2, wobbleAmp: 0.25 + rand() * 0.3, parallax: 0.85 + rand() * 0.15 };
+    scene.add(sp); app.l4s.push(sp);
   }
 
-  // Spawning waves for obstacles/lasers/boosts
+  // Spawning waves
   function spawnWave(){
-    const z = app.nextSpawnZ - (6 + rand()*6);
-    app.nextSpawnZ = z;
-
-    const roll = rand();
+    const z = app.nextSpawnZ - (6 + rand()*6); app.nextSpawnZ = z; const roll = rand();
     if(roll < 0.60){
       const count = 1 + (rand()>0.65?1:0);
       for(let i=0;i<count;i++){
-        const o = makeObstacle();
-        const theta = rand()*Math.PI*2;
-        const r = app.tunnelRadius - 1.1;
-        o.position.set( r*Math.cos(theta), r*Math.sin(theta), z - i*1.8 );
-        o.rotation.set(rand()*Math.PI, rand()*Math.PI, rand()*Math.PI);
+        const o = makeObstacle(); const theta = rand()*Math.PI*2; const r = app.tunnelRadius - 1.1;
+        o.position.set( r*Math.cos(theta), r*Math.sin(theta), z - i*1.8 ); o.rotation.set(rand()*Math.PI, rand()*Math.PI, rand()*Math.PI);
         scene.add(o); app.objects.push(o);
       }
     } else if (roll < 0.82) {
-      const L = makeLaserBar();
-      L.position.set(0,0,z);
-      L.rotation.z = rand()*Math.PI*2; // orientation around the tunnel
-      scene.add(L); app.lasers.push(L);
+      const L = makeLaserBar(); L.position.set(0,0,z); L.rotation.z = rand()*Math.PI*2; scene.add(L); app.lasers.push(L);
     } else {
-      const ring = makeBoostRing();
-      ring.position.set(0,0,z);
-      scene.add(ring); app.boosts.push(ring);
+      const ring = makeBoostRing(); ring.position.set(0,0,z); scene.add(ring); app.boosts.push(ring);
     }
   }
 
   // -----------------------
-  // Audio: loop external song + SFX (robust)
+  // Audio: loop external song + SFX
   // -----------------------
   let audioCtx, master, mediaNode, musicEl, musicMuted=false;
-
-  function setTip(msg){ const el = document.getElementById('tip'); if(el) el.textContent = msg; }
-
+  const setTip = msg => { const el = document.getElementById('tip'); if(el) el.textContent = msg; };
   function initAudio(){
-    if(!audioCtx){
-      audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-      master = audioCtx.createGain();
-      master.gain.value = 0.18;
-      master.connect(audioCtx.destination);
-    }
+    if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); master = audioCtx.createGain(); master.gain.value = 0.18; master.connect(audioCtx.destination); }
     if(!musicEl) musicEl = document.getElementById('music');
-    if(musicEl && !mediaNode){
-      try { mediaNode = audioCtx.createMediaElementSource(musicEl); mediaNode.connect(master); } catch(e){}
-      musicEl.loop = true; musicEl.volume = 1;
-    }
+    if(musicEl && !mediaNode){ try { mediaNode = audioCtx.createMediaElementSource(musicEl); mediaNode.connect(master); } catch(e){} musicEl.loop = true; musicEl.volume = 1; }
   }
-
   async function ensureMusic() {
     try { initAudio(); } catch(e){}
     try { await audioCtx.resume(); } catch(e){}
     if (musicEl && musicEl.readyState < 2) { try { musicEl.load(); } catch(e){} }
-    try {
-      if (musicEl && musicEl.paused) { await musicEl.play(); setTip(''); }
-    } catch (err) { setTip('Tap/Click the screen then press Start to enable audio.'); }
+    try { if (musicEl && musicEl.paused) { await musicEl.play(); setTip(''); } }
+    catch (err) { setTip('Tap/Click the screen then press Start to enable audio.'); }
   }
   window.addEventListener('pointerdown', () => { ensureMusic(); }, { once:true });
-
   function toggleMusic(){
-    if(!audioCtx) return;
-    musicMuted = !musicMuted;
-    const m = document.getElementById('music');
-    if (m) { musicMuted ? m.pause() : ensureMusic(); }
+    if(!audioCtx) return; musicMuted = !musicMuted;
+    const m = document.getElementById('music'); if (m) { musicMuted ? m.pause() : ensureMusic(); }
     updateButtonStates();
   }
-
-  // Simple SFX using WebAudio
-  function sfxBoost(){
-    if(!audioCtx) return; const t=audioCtx.currentTime;
+  function sfxBoost(){ if(!audioCtx) return; const t=audioCtx.currentTime;
     const o=audioCtx.createOscillator(); o.type='triangle';
     const g=audioCtx.createGain(); g.gain.setValueAtTime(0.12,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
     o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(1200,t+0.25);
     o.connect(g); g.connect(master); o.start(t); o.stop(t+0.36);
   }
-  function sfxHit(){
-    if(!audioCtx) return; const t=audioCtx.currentTime;
+  function sfxHit(){ if(!audioCtx) return; const t=audioCtx.currentTime;
     const o=audioCtx.createOscillator(); o.type='square';
     const g=audioCtx.createGain(); g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
     o.frequency.setValueAtTime(240,t); o.frequency.exponentialRampToValueAtTime(60,t+0.2);
     o.connect(g); g.connect(master); o.start(t); o.stop(t+0.24);
   }
 
-  // Keyboard + UI
+  // Keyboard
   const keys = new Set();
-  const down = e => {
+  addEventListener('keydown', e => {
     keys.add(e.code);
     if(e.code==='Enter' && !app.started){ start(); }
     if(e.code==='Space'){ togglePause(); }
     if(e.code==='KeyM'){ toggleMusic(); }
     if(e.code==='Escape'){ goToMenu(); }
-  };
-  const up   = e => { keys.delete(e.code); };
-  addEventListener('keydown', down); addEventListener('keyup', up);
+  });
+  addEventListener('keyup', e => { keys.delete(e.code); });
 
-  // Touch gestures
-  const touch = { active:false, x0:0, y0:0, x:0, y:0, fingers:0, t0:0, lastTap:0 };
+  // Touch swipe for radial control (anywhere on canvas)
+  const touch = { active:false, x0:0, y0:0, x:0, y:0, fingers:0, lastTap:0 };
   const targetEl = renderer.domElement;
-  function tp(e){ e.preventDefault(); }
-
+  const tp = e => e.preventDefault();
   targetEl.addEventListener('touchstart', e => {
-    const t = e.touches[0];
-    touch.active = true;
-    touch.x0 = touch.x = t.clientX;
-    touch.y0 = touch.y = t.clientY;
-    touch.fingers = e.touches.length;
-    touch.t0 = performance.now();
+    const t = e.touches[0]; if(!t) return;
+    touch.active=true; touch.x0=touch.x=t.clientX; touch.y0=touch.y=t.clientY; touch.fingers=e.touches.length;
     if (e.touches.length === 3) togglePause();
     if (e.touches.length === 2 && performance.now() - touch.lastTap < 250) toggleMusic();
     tp(e);
   }, {passive:false});
-  targetEl.addEventListener('touchmove', e => {
-    const t = e.touches[0]; if (!t) return;
-    touch.x = t.clientX; touch.y = t.clientY; touch.fingers = e.touches.length;
-    tp(e);
-  }, {passive:false});
-  targetEl.addEventListener('touchend', e => {
-    touch.fingers = e.touches.length;
-    if (e.touches.length === 0) { touch.active = false; touch.lastTap = performance.now(); }
-    tp(e);
-  }, {passive:false});
+  targetEl.addEventListener('touchmove', e => { const t = e.touches[0]; if(!t) return; touch.x=t.clientX; touch.y=t.clientY; touch.fingers=e.touches.length; tp(e); }, {passive:false});
+  targetEl.addEventListener('touchend', e => { touch.fingers=e.touches.length; if(e.touches.length===0){ touch.active=false; touch.lastTap=performance.now(); } tp(e); }, {passive:false});
 
-  // On-screen D-pad + Boost (multi-touch friendly)
-  const virtual = {left:false,right:false,up:false,down:false,boost:false};
+  // Rotate + Radial wheel control (with sliding knob)
+  const wheelEl = document.getElementById('wheel');
+  const knobEl  = document.getElementById('wheelKnob');
+  const wheel = { active:false, prevA:0, spin:0, visualA:0, radial:0, knobY:0, knobYTarget:0, radiusPx:90, knobRadius:35, innerPad:12 };
+  function normAngle(a){ if(a>Math.PI) a-=2*Math.PI; if(a<-Math.PI) a+=2*Math.PI; return a; }
+  function getWheelMetrics(e){
+    const rect = wheelEl.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    const x = (e.clientX ?? (e.touches?.[0]?.clientX)) - cx;
+    const y = (e.clientY ?? (e.touches?.[0]?.clientY)) - cy;
+    const r = rect.width/2;
+    return {x,y,r,cx,cy};
+  }
+  function bindWheel(){
+    if(!wheelEl) return;
+    const down = e => {
+      e.preventDefault();
+      const m = getWheelMetrics(e);
+      wheel.active=true; wheel.prevA = Math.atan2(m.y, m.x);
+      wheel.radiusPx = m.r; wheelEl.setPointerCapture?.(e.pointerId);
+    };
+    const move = e => {
+      if(!wheel.active) return;
+      e.preventDefault();
+      const m = getWheelMetrics(e);
+      const a = Math.atan2(m.y, m.x);
+      let da = normAngle(a - wheel.prevA);
+      wheel.prevA = a;
+      // rotation
+      wheel.spin += da;
+      wheel.visualA += da;
+      // radial from vertical deflection
+      const dead = 0.15;
+      let ry = clamp(m.y / m.r, -1, 1);
+      if (Math.abs(ry) < dead) ry = 0; else ry = (Math.abs(ry)-dead)/(1-dead) * Math.sign(ry);
+      wheel.radial = ry;
+
+      // knob slide target in pixels (respect inner ring and knob radius)
+      const maxSlide = Math.max(0, m.r - wheel.knobRadius - wheel.innerPad);
+      wheel.knobYTarget = clamp(ry * maxSlide, -maxSlide, maxSlide);
+    };
+    const up = e => { wheel.active=false; wheel.radial = 0; wheel.knobYTarget = 0; };
+
+    // Pointer (covers mouse + touch)
+    wheelEl.addEventListener('pointerdown', down);
+    wheelEl.addEventListener('pointermove', move);
+    wheelEl.addEventListener('pointerup', up);
+    wheelEl.addEventListener('pointercancel', up);
+    wheelEl.addEventListener('lostpointercapture', up);
+
+    // Touch fallback (older iOS)
+    wheelEl.addEventListener('touchstart', down, {passive:false});
+    wheelEl.addEventListener('touchmove', move, {passive:false});
+    wheelEl.addEventListener('touchend', up, {passive:false});
+  }
+  bindWheel();
+
+  // Right buttons
+  const virtual = {boost:false};
   function bindHold(el, keyName){
     if(!el) return;
     const setOn = v => { virtual[keyName]=v; el.dataset.on = v ? '1':'0'; };
     el.addEventListener('pointerdown', e => { e.preventDefault(); setOn(true); ensureMusic(); el.setPointerCapture?.(e.pointerId); });
     const off = () => setOn(false);
-    el.addEventListener('pointerup', off);
-    el.addEventListener('pointercancel', off);
-    el.addEventListener('pointerleave', off);
-    el.addEventListener('lostpointercapture', off);
+    el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('pointerleave', off); el.addEventListener('lostpointercapture', off);
   }
-  bindHold(document.querySelector('.padbtn[data-dir="left"]'), 'left');
-  bindHold(document.querySelector('.padbtn[data-dir="right"]'), 'right');
-  bindHold(document.querySelector('.padbtn[data-dir="up"]'), 'up');
-  bindHold(document.querySelector('.padbtn[data-dir="down"]'), 'down');
   bindHold(document.getElementById('boostBtn'), 'boost');
 
-  // New tiny buttons: Pause & Mute
   const pauseBtn = document.getElementById('pauseBtn');
   const muteBtn  = document.getElementById('muteBtn');
-
   function updateButtonStates(){
-    if (pauseBtn){
-      pauseBtn.textContent = app.paused ? '▶' : '⏸';
-      pauseBtn.dataset.on = app.paused ? '1' : '0';
-      pauseBtn.setAttribute('aria-pressed', app.paused ? 'true' : 'false');
-    }
-    if (muteBtn){
-      muteBtn.textContent = musicMuted ? '🔇' : '🔊';
-      muteBtn.dataset.on = musicMuted ? '1' : '0';
-      muteBtn.setAttribute('aria-pressed', musicMuted ? 'true' : 'false');
-    }
+    if (pauseBtn){ pauseBtn.textContent = app.paused ? '▶' : '⏸'; pauseBtn.dataset.on = app.paused ? '1' : '0'; pauseBtn.setAttribute('aria-pressed', app.paused ? 'true' : 'false'); }
+    if (muteBtn){  muteBtn.textContent = musicMuted ? '🔇' : '🔊'; muteBtn.dataset.on = musicMuted ? '1' : '0'; muteBtn.setAttribute('aria-pressed', musicMuted ? 'true' : 'false'); }
   }
   pauseBtn?.addEventListener('click', e => { e.preventDefault(); togglePause(); updateButtonStates(); });
   muteBtn?.addEventListener('click',  e => { e.preventDefault(); toggleMusic(); updateButtonStates(); });
 
+  // UI refs
   const ui = {
     speed:document.getElementById('speed'),
     score:document.getElementById('score'),
@@ -544,10 +516,7 @@
   document.getElementById('menuBtn').onclick = () => goToMenu();
 
   // Responsive
-  addEventListener('resize', () => {
-    renderer.setSize(innerWidth, innerHeight);
-    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-  });
+  addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); });
 
   function updateHUD(){
     ui.speed.textContent = `Speed: ${app.speed.toFixed(0)}`;
@@ -566,28 +535,12 @@
   function togglePause(){
     if(!app.started) return;
     app.paused=!app.paused;
-    if(!app.paused){
-      app.lastTime=performance.now();
-      ensureMusic();
-      loop();
-    } else {
-      document.getElementById('music')?.pause();
-    }
+    if(!app.paused){ app.lastTime=performance.now(); ensureMusic(); loop(); }
+    else { document.getElementById('music')?.pause(); }
     updateButtonStates();
   }
-  function restart(){
-    resetState(false);
-    app.started=true; ui.over.style.display='none';
-    ensureMusic();
-    app.lastTime=performance.now(); loop();
-    updateButtonStates();
-  }
-  function goToMenu(){
-    resetState(true);
-    ui.over.style.display='none';
-    ui.banner.style.display='grid';
-    updateButtonStates();
-  }
+  function restart(){ resetState(false); app.started=true; ui.over.style.display='none'; ensureMusic(); app.lastTime=performance.now(); loop(); updateButtonStates(); }
+  function goToMenu(){ resetState(true); ui.over.style.display='none'; ui.banner.style.display='grid'; updateButtonStates(); }
   function resetState(stopMusic){
     for(const a of app.objects){ scene.remove(a); }
     for(const a of app.boosts){ scene.remove(a); }
@@ -607,33 +560,18 @@
     for(let i=0;i<18;i++) spawnWave();
 
     const L4_SPAWN_AHEAD = 160;
-    while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){
-      app.l4NextSpawnZ -= 4 + rand()*6;
-      spawnL4(app.l4NextSpawnZ);
-    }
+    while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){ app.l4NextSpawnZ -= 4 + rand()*6; spawnL4(app.l4NextSpawnZ); }
 
-    if(stopMusic){
-      const m = document.getElementById('music');
-      m?.pause(); if(m) m.currentTime = 0;
-      musicMuted = false; // reset to default audible on next start
-    }
+    if(stopMusic){ const m = document.getElementById('music'); m?.pause(); if(m) m.currentTime = 0; musicMuted = false; }
   }
 
   // Collision helpers
-  function playerWorldPosition(){
-    return new THREE.Vector3(
-      app.player.r * Math.cos(app.player.theta),
-      app.player.r * Math.sin(app.player.theta),
-      0
-    );
-  }
+  const playerWorldPosition = () => new THREE.Vector3(app.player.r * Math.cos(app.player.theta), app.player.r * Math.sin(app.player.theta), 0);
 
   // Core loop
   function loop(){
     if(!app.started || app.paused) return;
-    const now = performance.now();
-    const dt = Math.min(0.035, (now - app.lastTime)/1000);
-    app.lastTime = now;
+    const now = performance.now(); const dt = Math.min(0.035, (now - app.lastTime)/1000); app.lastTime = now;
 
     app.distance += dt * app.speed;
 
@@ -648,36 +586,42 @@
     let downKey= keys.has('KeyS') || keys.has('ArrowDown');
     let burst = keys.has('ShiftLeft') || keys.has('ShiftRight');
 
-    // Touch swipe
+    // Touch swipe for radial (in/out)
     if (touch.active) {
-      const dx = (touch.x - touch.x0) / innerWidth;
       const dy = (touch.y - touch.y0) / innerHeight;
       const dead = 0.02;
-      left  ||= dx < -dead;
-      right ||= dx >  dead;
-      upKey ||= dy < -dead;     // toward center
-      downKey ||= dy >  dead;   // toward wall
-      burst ||= touch.fingers >= 2; // 2+ fingers = boost
+      upKey   ||= dy < -dead;
+      downKey ||= dy >  dead;
+      burst   ||= touch.fingers >= 2;
     }
-    // On-screen buttons
-    left  ||= virtual.left;
-    right ||= virtual.right;
-    upKey ||= virtual.up;
-    downKey ||= virtual.down;
-    burst ||= virtual.boost;
 
+    // Wheel steering & knob easing
+    const wheelGain = 7.0, wheelDamp = 0.85;
+    const wheelImpulse = wheel.spin * wheelGain; wheel.spin *= wheelDamp;
+    // Apply combined steering
     if(left)  app.player.thetaVel -= turnAccel*dt;
     if(right) app.player.thetaVel += turnAccel*dt;
+    app.player.thetaVel += wheelImpulse * dt;
     app.player.thetaVel *= Math.max(0, 1 - turnDrag*dt);
     app.player.theta += app.player.thetaVel*dt;
 
+    // Radial (keyboard/swipe) + wheel vertical bias
     if(upKey)   app.player.rVel -= radialAccel*dt;
     if(downKey) app.player.rVel += radialAccel*dt;
+    if (wheel.radial !== 0){
+      const wheelRadialGain = 1.1;
+      app.player.rVel += wheel.radial * radialAccel * wheelRadialGain * dt;
+    }
     app.player.rVel *= Math.max(0, 1 - radialDrag*dt);
-    app.player.r += app.player.rVel*dt;
-    if(app.player.r < rMin){ app.player.r = rMin; app.player.rVel = 0; }
-    if(app.player.r > rMax){ app.player.r = rMax; app.player.rVel = 0; }
+    app.player.r = clamp(app.player.r + app.player.rVel*dt, rMin, rMax);
+    if(app.player.r === rMin || app.player.r === rMax) app.player.rVel = 0;
 
+    // Update knob visual: ease toward target + rotate with visualA
+    wheel.knobY = lerp(wheel.knobY, wheel.knobYTarget, Math.min(1, dt*12));
+    knobEl.style.transform = `translate(-50%, -50%) translateY(${wheel.knobY}px) rotate(${wheel.visualA}rad)`;
+
+    // Boost (via button or shift)
+    burst ||= virtual.boost;
     const target = app.baseSpeed * (1 + Math.min(1, app.score/4000)) * (burst?1.18:1);
     if(app.boostTimer>0) app.boostTimer -= dt;
     const boostMul = app.boostTimer>0 ? 1.75 : 1;
@@ -703,13 +647,9 @@
     // Obstacles
     for(let i=app.objects.length-1; i>=0; i--){
       const o = app.objects[i];
-      o.position.z += app.speed*dt;
-      o.rotation.x += dt*.6; o.rotation.y -= dt*.8;
-      if(o.position.z > app.player.z+3){
-        scene.remove(o); app.objects.splice(i,1); app.score += 12; continue;
-      }
-      const d = o.position.distanceTo(playerPos);
-      if(d < (o.userData.radius + 0.6) && app.hitCooldown<=0){
+      o.position.z += app.speed*dt; o.rotation.x += dt*.6; o.rotation.y -= dt*.8;
+      if(o.position.z > app.player.z+3){ scene.remove(o); app.objects.splice(i,1); app.score += 12; continue; }
+      if(o.position.distanceTo(playerPos) < (o.userData.radius + 0.6) && app.hitCooldown<=0){
         app.hitCooldown = .6; app.health--; document.getElementById('hearts').classList.add('flash'); setTimeout(()=>document.getElementById('hearts').classList.remove('flash'),160);
         app.speed *= 0.6; app.player.thetaVel += (Math.random()-.5)*6; app.player.rVel += (Math.random()-.5)*10; sfxHit();
         if(app.health<=0){ endGame(); return; }
@@ -720,8 +660,7 @@
     // Boost rings
     for(let i=app.boosts.length-1;i>=0;i--){
       const r = app.boosts[i];
-      r.position.z += app.speed*dt;
-      r.rotation.z += dt*1.5;
+      r.position.z += app.speed*dt; r.rotation.z += dt*1.5;
       if(r.position.z > app.player.z+3){ scene.remove(r); app.boosts.splice(i,1); continue; }
       const d = Math.abs(r.position.z) + Math.abs(playerPos.length() - (app.tunnelRadius-1.3));
       if(d < 1.2){
@@ -730,14 +669,12 @@
       }
     }
 
-    // Lasers — swept collision so fast passes still hit
+    // Lasers
     for (let i = app.lasers.length - 1; i >= 0; i--) {
       const L = app.lasers[i];
       const prevZ = L.userData.prevZ ?? L.position.z;
-      L.position.z += app.speed * dt;
-      L.rotation.z += dt * 1.1;
-      const curZ = L.position.z;
-      L.userData.prevZ = curZ;
+      L.position.z += app.speed * dt; L.rotation.z += dt * 1.1;
+      const curZ = L.position.z; L.userData.prevZ = curZ;
 
       if (curZ > app.player.z + 3) { scene.remove(L); app.lasers.splice(i, 1); continue; }
 
@@ -751,44 +688,33 @@
       const hit = Math.abs(zClosest) < zTol && distToBar < L.userData.thickness;
 
       if (hit && app.hitCooldown <= 0) {
-        app.hitCooldown = 0.6;
-        app.health--;
+        app.hitCooldown = 0.6; app.health--;
         document.getElementById('hearts').classList.add('flash'); setTimeout(() => document.getElementById('hearts').classList.remove('flash'), 160);
-        app.speed *= 0.6;
-        app.player.thetaVel += (Math.random() - 0.5) * 6;
-        app.player.rVel += (Math.random() - 0.5) * 10;
-        sfxHit();
+        app.speed *= 0.6; app.player.thetaVel += (Math.random() - 0.5) * 6; app.player.rVel += (Math.random() - 0.5) * 10; sfxHit();
         if (app.health <= 0) { endGame(); return; }
       }
     }
 
-    // --- L4 particles update ---
+    // L4 particles
     for (let i = app.l4s.length - 1; i >= 0; i--) {
-      const s = app.l4s[i];
-      const u = s.userData;
+      const s = app.l4s[i], u = s.userData;
       s.position.z += app.speed * dt * u.parallax;
       u.theta += u.rotSpeed * dt;
       s.position.x = u.r * Math.cos(u.theta);
       s.position.y = u.r * Math.sin(u.theta);
-      u.wobble += dt;
-      const pulse = 0.85 + u.wobbleAmp * Math.sin(u.wobble * 2.4);
+      u.wobble += dt; const pulse = 0.85 + u.wobbleAmp * Math.sin(u.wobble * 2.4);
       s.scale.setScalar(u.baseScale * pulse);
       const ahead = (s.position.z - app.player.z);
       const fade = Math.max(0, Math.min(1, 1 - ahead / 160));
       s.material.opacity = 0.18 + 0.72 * fade;
-      if (s.position.z > app.player.z + 5) {
-        scene.remove(s); app.l4s.splice(i, 1);
-      }
+      if (s.position.z > app.player.z + 5) { scene.remove(s); app.l4s.splice(i, 1); }
     }
 
     // Endless spawning
     const SPAWN_AHEAD = 160;
     while(app.nextSpawnZ > -app.distance - SPAWN_AHEAD){ spawnWave(); }
     const L4_SPAWN_AHEAD = 160;
-    while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){
-      app.l4NextSpawnZ -= 4 + rand()*6;
-      spawnL4(app.l4NextSpawnZ);
-    }
+    while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){ app.l4NextSpawnZ -= 4 + rand()*6; spawnL4(app.l4NextSpawnZ); }
 
     app.score += dt * app.speed * 0.7;
 
@@ -807,24 +733,15 @@
 
   // Seed & HUD
   for(let i=0;i<18;i++) spawnWave();
-  const L4_SPAWN_AHEAD = 160;
-  while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){
-    app.l4NextSpawnZ -= 4 + rand()*6;
-    spawnL4(app.l4NextSpawnZ);
-  }
-  updateHUD();
-  updateButtonStates();
+  { const L4_SPAWN_AHEAD = 160; while(app.l4NextSpawnZ > -app.distance - L4_SPAWN_AHEAD){ app.l4NextSpawnZ -= 4 + rand()*6; spawnL4(app.l4NextSpawnZ); } }
+  updateHUD(); updateButtonStates();
 
   // Enter starts
   window.addEventListener('keypress', (e)=>{ if(e.code==='Enter' && !app.started){ start(); } });
 
-  // Warn if audio element reports an error (bad filename/path)
-  (function(){
-    const a = document.getElementById('music');
-    if (!a) return;
-    a.addEventListener('error', ()=>{
-      setTip('Audio load failed: check the MP3 filename/path is exactly "Vierre Cloud - moment (Official Audio).mp3"');
-    });
+  // Audio error tip
+  (function(){ const a = document.getElementById('music'); if (!a) return;
+    a.addEventListener('error', ()=>{ setTip('Audio load failed: check the MP3 filename/path is exactly "Vierre Cloud - moment (Official Audio).mp3"'); });
     a.addEventListener('play', ()=> { setTip(''); });
   })();
   </script>
